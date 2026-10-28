@@ -1,0 +1,31 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+*.tsbuildinfo
+
+# Environment — never commit real Firebase keys; .env.example is the template
+.env
+.env.local
+.env.*.local
+
+# Firebase CLI
+.firebase
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
+
+# Personal notes (not part of the project)
+LINKEDIN_POST.md

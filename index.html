@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>%VITE_APP_NAME% — Digital business cards</title>
+    <meta
+      name="description"
+      content="Create a polished digital business card, share it with a styled QR code, and let people save your contact in one tap."
+    />
+    <meta name="theme-color" content="#fafaf7" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Card data comes from Firestore; connect early, while the app is still loading. -->
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+
+    <!-- Site-wide link-preview tags. Social crawlers don't run JavaScript, so these are what
+         WhatsApp, LinkedIn, iMessage etc. show for every page of the app. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="%VITE_APP_NAME%" />
+    <meta property="og:title" content="%VITE_APP_NAME% — Digital business cards" />
+    <meta
+      property="og:description"
+      content="A polished digital business card with a styled QR code and one-tap Save Contact."
+    />
+    <meta name="twitter:card" content="summary" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Please enable JavaScript to view this page.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

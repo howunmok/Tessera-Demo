@@ -1,0 +1,104 @@
+@import 'tailwindcss';
+
+/* ─────────────────────────────────────────────────────────────
+   Design tokens — app chrome (the cards get their own themes)
+   Ink + warm brass on an off-white canvas.
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, 'Times New Roman', serif;
+
+  --color-ink: #15151c;
+  --color-ink-soft: #2b2b35;
+  --color-canvas: #fafaf7;
+  --color-surface: #ffffff;
+  --color-line: #e8e6e1;
+  --color-line-strong: #d4d1c9;
+  --color-muted: #64636b;
+
+  --color-brass: #c49a5a;
+  --color-brass-strong: #8a6530;
+  --color-brass-soft: #f5eee2;
+
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-success: #067647;
+  --color-success-soft: #ecfdf3;
+
+  --radius-card: 1.25rem;
+
+  --shadow-soft: 0 1px 2px rgb(21 21 28 / 0.04), 0 4px 12px -4px rgb(21 21 28 / 0.08);
+  --shadow-card: 0 1px 2px rgb(21 21 28 / 0.05), 0 12px 32px -12px rgb(21 21 28 / 0.18);
+  --shadow-lift: 0 2px 6px rgb(21 21 28 / 0.06), 0 32px 64px -24px rgb(21 21 28 / 0.35);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Entrance for the public card. CSS-only (no JS) to keep that page fast; disabled with
+     motion-reduce:animate-none for people who prefer reduced motion. */
+  --animate-rise: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* Transparent-image backdrop (logo uploads). */
+@utility bg-checkerboard {
+  background-color: #ffffff;
+  background-image: conic-gradient(#eeede9 25%, transparent 0 50%, #eeede9 0 75%, transparent 0);
+  background-size: 16px 16px;
+}
+
+/* Soft dotted canvas behind the live preview. */
+@utility bg-dots {
+  background-color: var(--color-canvas);
+  background-image: radial-gradient(var(--color-line-strong) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* Printing (the business-card page): Letter paper with no browser margins, so cards land at
+   exact positions for Avery 8371 / 5371 sheets. */
+@page {
+  size: letter;
+  margin: 0;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  @media print {
+    body {
+      background: white;
+    }
+
+    /* Never print a notification that happens to be on screen. */
+    [data-sonner-toaster] {
+      display: none !important;
+    }
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-brass-soft);
+    color: var(--color-ink);
+  }
+}

@@ -1,0 +1,45 @@
+# Netlify build settings. Environment variables (VITE_FIREBASE_* etc.) are NOT read from .env
+# on Netlify — add them under Site configuration → Environment variables.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+# Single-page app: serve index.html for every route, so links like /c/your-name
+# (what the QR codes open) and /dashboard work on a fresh page load.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    # Only the app's own scripts run (plus Google's sign-in loader, for “Continue with Google”);
+    # data only goes to Firestore and Firebase Auth. Update connect-src if you add a service.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob: https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+
+# ── Link previews ─────────────────────────────────────────────────────────────
+# Link-preview bots (WhatsApp, LinkedIn, iMessage…) don't run JavaScript. These edge
+# functions put each card's name, title and photo into /c/* pages for them; visitors get
+# the normal page untouched. To turn them off, delete both blocks — previews then fall
+# back to the site-wide tags in index.html. See docs/DEPLOY_NETLIFY.md.
+[[edge_functions]]
+  path = "/c/*"
+  function = "card-preview"
+
+[[edge_functions]]
+  path = "/og/*"
+  function = "card-image"

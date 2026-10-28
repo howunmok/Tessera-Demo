@@ -1,0 +1,210 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function cardPath(cardId) {
+      return /databases/$(database)/documents/cards/$(cardId);
+    }
+
+    function slugPath(slug) {
+      return /databases/$(database)/documents/slugs/$(slug);
+    }
+
+    // 3–40 characters: lowercase letters, digits and single hyphens,
+    // not starting or ending with a hyphen.
+    function isValidSlug(slug) {
+      return slug is string
+        && slug.size() >= 3
+        && slug.size() <= 40
+        && slug.matches('^[a-z0-9]+(-[a-z0-9]+)*$');
+    }
+
+    function isStringMax(value, max) {
+      return value is string && value.size() <= max;
+    }
+
+    // The key is either missing, or a string of at most `max` characters.
+    function optionalStringMax(data, key, max) {
+      return !(key in data) || isStringMax(data[key], max);
+    }
+
+    // Images are stored inline as base64 data URLs (Cloud Storage isn't available on the
+    // Spark plan). 200,000 characters ≈ 150 KB each; three images still leave a card well
+    // under Firestore's 1 MB document limit.
+    function isOptionalImage(value) {
+      return value == null
+        || (value is string
+          && value.size() <= 200000
+          && value.matches('^data:image/(webp|png|jpeg);base64,[A-Za-z0-9+/=]+$'));
+    }
+
+    function isValidProfile(profile) {
+      return profile is map
+        && profile.keys().hasOnly([
+          'fullName', 'jobTitle', 'company', 'department', 'email',
+          'phones', 'address', 'bio', 'credential'
+        ])
+        && optionalStringMax(profile, 'fullName', 100)
+        && optionalStringMax(profile, 'jobTitle', 100)
+        && optionalStringMax(profile, 'company', 100)
+        && optionalStringMax(profile, 'department', 100)
+        && optionalStringMax(profile, 'email', 254)
+        && optionalStringMax(profile, 'address', 300)
+        && optionalStringMax(profile, 'bio', 300)
+        && optionalStringMax(profile, 'credential', 120)
+        && (!('phones' in profile) || (profile.phones is list && profile.phones.size() <= 5));
+    }
+
+    function isHexColor(value) {
+      return value is string && value.matches('^#[0-9a-fA-F]{6}$');
+    }
+
+    // Optional fields: either missing (cards saved before the field existed) or valid.
+    function optionalOneOf(data, key, allowed) {
+      return !(key in data) || data[key] in allowed;
+    }
+
+    function optionalHex(data, key) {
+      return !(key in data) || isHexColor(data[key]);
+    }
+
+    function optionalBool(data, key) {
+      return !(key in data) || data[key] is bool;
+    }
+
+    function isValidTheme(theme) {
+      return theme is map
+        && theme.keys().hasOnly([
+          'template', 'accent', 'mode', 'font', 'photoShape', 'coverType', 'coverColor'
+        ])
+        && optionalOneOf(theme, 'template', ['modern-minimal', 'corporate-classic', 'bold-gradient'])
+        && optionalHex(theme, 'accent')
+        && optionalOneOf(theme, 'mode', ['light', 'dark'])
+        && optionalOneOf(theme, 'font', ['modern', 'editorial', 'geometric'])
+        && optionalOneOf(theme, 'photoShape', ['circle', 'rounded'])
+        && optionalOneOf(theme, 'coverType', ['color', 'image'])
+        && optionalHex(theme, 'coverColor');
+    }
+
+    function isValidQr(qr) {
+      return qr is map
+        && qr.keys().hasOnly([
+          'dotStyle', 'cornerSquareStyle', 'cornerDotStyle', 'foreground', 'background',
+          'gradient', 'gradientColor', 'showLogo'
+        ])
+        && optionalOneOf(qr, 'dotStyle',
+          ['square', 'dots', 'rounded', 'extra-rounded', 'classy', 'classy-rounded'])
+        && optionalOneOf(qr, 'cornerSquareStyle', ['square', 'dot', 'extra-rounded'])
+        && optionalOneOf(qr, 'cornerDotStyle', ['square', 'dot'])
+        && optionalHex(qr, 'foreground')
+        && optionalHex(qr, 'background')
+        && optionalHex(qr, 'gradientColor')
+        && optionalBool(qr, 'gradient')
+        && optionalBool(qr, 'showLogo');
+    }
+
+    // Rules can't loop over lists, so individual links and phone numbers aren't checked
+    // here: the list sizes are capped, Firestore caps the whole card at 1 MB, and the app
+    // validates every link when reading and only ever renders http(s) links as clickable.
+
+    function isValidCard(card) {
+      return card.keys().hasAll([
+          'ownerUid', 'slug', 'profile', 'links', 'theme', 'qr', 'createdAt', 'updatedAt'
+        ])
+        && card.keys().hasOnly([
+          'ownerUid', 'slug', 'label', 'profile', 'photo', 'logo', 'cover',
+          'links', 'theme', 'qr', 'schemaVersion', 'createdAt', 'updatedAt'
+        ])
+        && card.ownerUid is string
+        && isValidSlug(card.slug)
+        && optionalStringMax(card, 'label', 60)
+        && isValidProfile(card.profile)
+        && isOptionalImage(card.get('photo', null))
+        && isOptionalImage(card.get('logo', null))
+        && isOptionalImage(card.get('cover', null))
+        && card.links is list
+        && card.links.size() <= 100
+        && isValidTheme(card.theme)
+        && isValidQr(card.qr)
+        && (!('schemaVersion' in card) || card.schemaVersion is int)
+        && card.createdAt is timestamp
+        && card.updatedAt == request.time;
+    }
+
+    // ── Cards ────────────────────────────────────────────────────────────────
+
+    match /cards/{cardId} {
+      // Anyone can open a single card by its ID — this powers the public card page.
+      allow get: if true;
+
+      // Listing is limited to your own cards, so nobody can scrape every card's contact
+      // details. Queries must include where('ownerUid', '==', <your uid>).
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+
+      // A new card must claim its slug in the same batch.
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && isValidCard(request.resource.data)
+        && getAfter(slugPath(request.resource.data.slug)).data.cardId == cardId;
+
+      // Owner only. When the slug changes, the new slug must be claimed for this card
+      // and the old one released in the same batch.
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && isValidCard(request.resource.data)
+        && (
+          request.resource.data.slug == resource.data.slug
+          || (
+            getAfter(slugPath(request.resource.data.slug)).data.cardId == cardId
+            && !existsAfter(slugPath(resource.data.slug))
+          )
+        );
+
+      // Deleting a card must release its slug in the same batch.
+      allow delete: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && !existsAfter(slugPath(resource.data.slug));
+    }
+
+    // ── Slugs ────────────────────────────────────────────────────────────────
+
+    match /slugs/{slug} {
+      // Public, so the editor can check availability and the public page can resolve /c/:slug.
+      allow get: if true;
+      allow list: if false;
+
+      // Claimable only once: `create` fails when the document already exists, and slugs are
+      // never updated in place. The card must belong to the caller and point at this slug.
+      allow create: if isSignedIn()
+        && isValidSlug(slug)
+        && request.resource.data.keys().hasOnly(['cardId', 'ownerUid'])
+        && request.resource.data.keys().hasAll(['cardId', 'ownerUid'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.cardId is string
+        && getAfter(cardPath(request.resource.data.cardId)).data.ownerUid == request.auth.uid
+        && getAfter(cardPath(request.resource.data.cardId)).data.slug == slug;
+
+      allow update: if false;
+
+      // Released by its owner when the card moves to a new slug or is deleted.
+      allow delete: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && (
+          !existsAfter(cardPath(resource.data.cardId))
+          || getAfter(cardPath(resource.data.cardId)).data.slug != slug
+        );
+    }
+
+    // Every other path is denied by default.
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "cards",
+      "fieldPath": "photo",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "cards",
+      "fieldPath": "logo",
+      "indexes": []
+    }
+  ]
+}
